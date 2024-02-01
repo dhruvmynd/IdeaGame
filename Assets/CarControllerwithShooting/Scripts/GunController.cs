@@ -1,0 +1,213 @@
+using UnityEngine;
+using System.Collections.Generic;
+
+namespace CarControllerwithShooting
+{
+    public class GunController : MonoBehaviour
+    {
+        public PlayerInput playerInput;
+
+        [Header("Machine Gun Properties")]
+        public GameObject Bullet_Machinegun;
+        public Transform FiringPoint_Machinegun;
+        private float LastTime_Machinegun_Fire = 0;
+        public float Machinegun_Firing_Interval;
+        public AudioClip AudioClip_Machinegun_Fire;
+        public Animation Anim_MachineGun;
+
+        [Header("Missile Properties")]
+        public GameObject Bullet_Missile;
+        public Transform[] FiringPoints_Missiles;
+        private float LastTime_Missile_Fire = 0;
+        public float Missile_Firing_Interval;
+        private int Missile_Firing_Point_Index = 0;
+        public AudioClip AudioClip_Missile_Fire;
+        public ParticleSystem[] Particle_Missile_Firing_Explosion;
+
+        [Header("Ammo Capacity")]
+        public int Ammo_Machinegun = 240;
+        public int Ammo_Missile = 20;
+
+        public AudioSource AudioSource_Gun;
+        public static GunController Instance;
+
+        public GameObject Weapon_MachineGun;
+        public GameObject Weapon_MissileLeft;
+        public GameObject Weapon_MissileRight;
+
+        // Add a public delegate and event for missile firing
+        public delegate void MissileFiredHandler(Transform missileTransform);
+        public static event MissileFiredHandler OnMissileFired;
+
+        private List<GameObject> activeMissiles = new List<GameObject>();
+
+        private void Awake()
+        {
+            Instance = this;
+        }
+
+        private void Start()
+        {
+            GameCanvas.Instance.Text_Ammo_Missile.text = Ammo_Missile.ToString();
+            GameCanvas.Instance.Text_Ammo_Machinegun.text = Ammo_Machinegun.ToString();
+
+            // Call this method after a set time period
+            Invoke("ResetCamera", 5f); // 5 seconds as an example
+        }
+
+        void ResetCamera()
+        {
+            GunController.Instance.ResetCameraToCar();
+        }
+
+        public void DeactivateWeapons()
+        {
+            GameCanvas.Instance.button_Machinegun.gameObject.SetActive(false);
+            GameCanvas.Instance.button_Missile.gameObject.SetActive(false);
+            Weapon_MachineGun.SetActive(false);
+            Weapon_MissileLeft.SetActive(false);
+            Weapon_MissileRight.SetActive(false);
+            this.enabled = false;
+        }
+
+
+        private MissileControl currentControlledMissile;
+
+        public void Fire_Missile()
+        {
+            if (Time.time > LastTime_Missile_Fire + Missile_Firing_Interval && Ammo_Missile > 0)
+            {
+                if (playerInput != null)
+                {
+                    playerInput.enabled = false;  // Disable player input for car
+                }
+
+                LastTime_Missile_Fire = Time.time;
+                Missile_Firing_Point_Index++;
+                Ammo_Missile--;
+                GameCanvas.Instance.Text_Ammo_Missile.text = Ammo_Missile.ToString();
+                if (Ammo_Missile == 0) GameCanvas.Instance.Text_Ammo_Missile.color = Color.red;
+
+                AudioSource_Gun.PlayOneShot(AudioClip_Missile_Fire); // Play missile firing sound
+
+                // Instantiate the new missile
+                GameObject newMissile = Instantiate(Bullet_Missile, FiringPoints_Missiles[Missile_Firing_Point_Index % 2].position, Quaternion.identity);
+
+                // Add MissileControl component to the new missile
+                MissileControl missileControl = newMissile.AddComponent<MissileControl>();
+                missileControl.SetAsCurrentControlled(); // Set this missile as the currently controlled one
+
+                // Notify when a missile is fired (for camera to follow)
+                OnMissileFired?.Invoke(newMissile.transform);
+
+            }
+        }
+
+        private void OnEnable()
+        {
+            MissileControl.OnMissileDestroyed += ResetCameraToCar;
+        }
+
+        private void OnDisable()
+        {
+            MissileControl.OnMissileDestroyed -= ResetCameraToCar;
+        }
+
+        private void ResetCameraToCar()
+        {
+            // Re-enable car controls
+            if (playerInput != null)
+            {
+                playerInput.enabled = true;
+            }
+
+            // Notify to switch the camera back to the car
+            OnMissileFired?.Invoke(null);
+        }
+
+        public void Fire_MachineGun()
+        {
+            if (Time.time > LastTime_Machinegun_Fire + Machinegun_Firing_Interval && Ammo_Machinegun > 0)
+            {
+                LastTime_Machinegun_Fire = Time.time;
+                Ammo_Machinegun--;
+                Anim_MachineGun.Play();
+                GameCanvas.Instance.Text_Ammo_Machinegun.text = Ammo_Machinegun.ToString();
+                if (Ammo_Machinegun == 0) GameCanvas.Instance.Text_Ammo_Machinegun.color = Color.red;
+                AudioSource_Gun.PlayOneShot(AudioClip_Machinegun_Fire);
+                GameObject newBullet = Instantiate(Bullet_Machinegun, FiringPoint_Machinegun.position, Quaternion.identity);
+                newBullet.transform.eulerAngles = FiringPoint_Machinegun.eulerAngles;
+                newBullet.GetComponentInChildren<Rigidbody>().AddForce(FiringPoint_Machinegun.transform.forward * 15, ForceMode.Impulse);
+            }
+        }
+
+        void FiringProcess()
+        {
+            if (GameCanvas.Instance.isFiringUpdate == 1)
+            {
+                Fire_MachineGun();
+            }
+            else if (GameCanvas.Instance.isFiringUpdate == -1)
+            {
+                Fire_Missile();
+            }
+        }
+
+        private void CheckMissileDestruction()
+        {
+            for (int i = activeMissiles.Count - 1; i >= 0; i--)
+            {
+                if (activeMissiles[i] == null)
+                {
+                    activeMissiles.RemoveAt(i);
+                    //Dhruv
+                    ResetCameraToCar();
+                    // Re-enable car controls
+                    if (playerInput != null)
+                    {
+                        playerInput.enabled = true;
+                    }
+                }
+            }
+        }
+
+
+        void FixedUpdate()
+        {
+            FiringProcess();
+        }
+
+        private void Update()
+        {
+            CheckMissileDestruction();
+
+            if(CarSystemManager.Instance.controllerType == ControllerType.KeyboardMouse)
+            {
+                if (Input.GetMouseButton(0))
+                {
+                    Fire_MachineGun();
+                }
+                else if (Input.GetMouseButtonUp(1))
+                {
+                    Fire_Missile();
+                }
+            }
+        }
+
+        public void Add_Ammo_MachineGun(int Amount, AudioClip clip)
+        {
+            Ammo_Machinegun += Amount;
+            GameCanvas.Instance.Text_Ammo_Machinegun.text = Ammo_Machinegun.ToString();
+            AudioSource_Gun.PlayOneShot(clip);
+            GameCanvas.Instance.Text_Ammo_Machinegun.color = Color.green;
+        }
+
+        public void Add_Ammo_Missile(int Amount, AudioClip clip)
+        {
+            Ammo_Missile += Amount;
+            GameCanvas.Instance.Text_Ammo_Missile.text = Ammo_Missile.ToString();
+            AudioSource_Gun.PlayOneShot(clip);
+            GameCanvas.Instance.Text_Ammo_Missile.color = Color.green;
+        }
+    }
+}
