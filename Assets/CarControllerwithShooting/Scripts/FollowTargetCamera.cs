@@ -6,48 +6,65 @@ namespace CarControllerwithShooting
     {
         public Transform Target;
         public Transform CarCameraTarget;
-        public float PositionFolowForce = 5f;
-        public float RotationFolowForce = 5f;
+        public float DistanceBehind = 10f; // Static distance behind the car
+        public float BaseDistanceAbove = 5f; // Base distance above the car
+        public float PositionFollowForce = 5f;
+        public float RotationFollowForce = 5f;
+        public float ZoomSensitivity = 10f;
+        public float MinFOV = 15f;
+        public float MaxFOV = 90f;
+        public float MinDistanceAbove = 2f; // Minimum distance above the car
+        public float MaxDistanceAbove = 15f; // Maximum distance above the car
 
-        //Dhruv
+        private Camera childCamera;
+
         void Start()
         {
-            // Subscribe to the missile fired event (Dhruv)
+            childCamera = GetComponentInChildren<Camera>();
             GunController.OnMissileFired += HandleMissileFired;
-
         }
 
         void FixedUpdate()
         {
             if (Target != null)
             {
-                var vector = Vector3.forward;
-                var dir = Target.rotation * Vector3.forward;
-                dir.y = 0f;
-                if (dir.magnitude > 0f) vector = dir / dir.magnitude;
+                // Handle mouse scroll input for zooming
+                float scroll = Input.GetAxis("Mouse ScrollWheel");
+                if (childCamera != null)
+                {
+                    childCamera.fieldOfView -= scroll * ZoomSensitivity;
+                    childCamera.fieldOfView = Mathf.Clamp(childCamera.fieldOfView, MinFOV, MaxFOV);
 
-                transform.position = Vector3.Lerp(transform.position, Target.position, PositionFolowForce * Time.deltaTime);
-                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(vector), RotationFolowForce * Time.deltaTime);
+                    // Adjust distance above based on FOV
+                    float fovRatio = (childCamera.fieldOfView - MinFOV) / (MaxFOV - MinFOV);
+                    float distanceAbove = Mathf.Lerp(MinDistanceAbove, MaxDistanceAbove, fovRatio);
+
+                    // Calculate the desired position of the camera
+                    Vector3 desiredPosition = Target.position - Target.forward * DistanceBehind + Vector3.up * distanceAbove;
+
+                    // Interpolate towards the desired position to smooth the movement
+                    transform.position = Vector3.Lerp(transform.position, desiredPosition, PositionFollowForce * Time.deltaTime);
+
+                    // Always look at the target
+                    transform.LookAt(Target.position);
+                }
             }
         }
-        //Dhruv
+
         private void HandleMissileFired(Transform missileTransform)
         {
             if (missileTransform != null)
             {
-                // Change the target to the missile (Dhruv)
                 Target = missileTransform;
             }
             else
             {
-                // Reset the target back to the car (Dhruv)
                 Target = CarCameraTarget;
             }
         }
-        //Dhruv
+
         void OnDestroy()
         {
-            // Unsubscribe from the event when the script is destroyed (Dhruv)
             GunController.OnMissileFired -= HandleMissileFired;
         }
     }
