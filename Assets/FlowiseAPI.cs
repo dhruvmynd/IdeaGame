@@ -6,8 +6,8 @@ using UnityEngine.Networking;
 
 public class FlowiseAPI : MonoBehaviour
 {
-    private readonly string url = "https://mia-ing5.onrender.com/api/v1/prediction/66b62b38-b5f5-4e08-9b0b-91b4c476c1a0";
-    private readonly string token = "7M44jL3Q7G4A40rl8uhC2uj3Tsepxt0SqjEcFKKdPuI="; // Replace with your actual token
+    private readonly string url = "https://flowise.thecela.com/api/v1/prediction/587e29be-52c5-471d-985c-42838b115776";
+    private readonly string token = "nviwvK7rhEeXPY05uGH8XRq2pgvSgC801joAZ92P4ng="; 
     public delegate void ResponseReceived(string response);
     public event ResponseReceived OnResponseReceived;
 
