@@ -3,7 +3,18 @@
 --- !u!78 &1
 TagManager:
   serializedVersion: 2
-  tags: []
+  tags:
+  - Natural
+  - Collactable
+  - Collapsable
+  - Car
+  - Bullet
+  - Missile
+  - BulletMuzzle
+  - MissileExplosion
+  - Enemy
+  - Ground
+  - Vehicle
   layers:
   - Default
   - TransparentFX
